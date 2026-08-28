@@ -14,8 +14,11 @@ from .auth import AuthTokenMiddleware
 IntentHandler = Callable[[dict], Awaitable[dict]]
 
 
-def build_agent_card(name: str, skills: list[tuple[str, str, str]], version: str = "0.1.0") -> AgentCard:
-    """skills: list of (id, name, description) tuples, one per supported intent."""
+def build_agent_card(name: str, skills: list[tuple], version: str = "0.1.0") -> AgentCard:
+    """skills: (id, name, description[, tags, examples]) tuples, one per intent.
+    `tags` / `examples` (both optional) ride on the AgentSkill so the BFA can
+    rank the skill in `/resolve` straight from the served agent card — there is
+    no separate self-registration payload (spec/13)."""
     return AgentCard(
         name=name,
         description=f"Smart Home AI - {name} agent",
@@ -24,8 +27,14 @@ def build_agent_card(name: str, skills: list[tuple[str, str, str]], version: str
         default_input_modes=["application/json"],
         default_output_modes=["application/json"],
         skills=[
-            AgentSkill(id=skill_id, name=skill_name, description=description)
-            for skill_id, skill_name, description, *_ in skills
+            AgentSkill(
+                id=skill[0],
+                name=skill[1],
+                description=skill[2],
+                tags=list(skill[3]) if len(skill) > 3 else [],
+                examples=list(skill[4]) if len(skill) > 4 else [],
+            )
+            for skill in skills
         ],
         # Relative on purpose: callers always reach us via the BFA-resolved
         # endpoint (see smart_home_common.a2a_client), never via a self-declared

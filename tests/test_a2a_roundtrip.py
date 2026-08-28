@@ -26,7 +26,11 @@ def _build_agent_app() -> FastAPI:
     app = FastAPI()
     executor = IntentAgentExecutor({"echo": echo_handler, "boom": boom_handler})
     card = build_agent_card(
-        "test-agent", skills=[("echo", "Echo", "Echoes input"), ("boom", "Boom", "Always fails")]
+        "test-agent",
+        skills=[
+            ("echo", "Echo", "Echoes input", ["echo", "diagnostic"], ["echo this", "repeat after me"]),
+            ("boom", "Boom", "Always fails"),
+        ],
     )
     mount_a2a(app, card, executor)
     return app
@@ -35,11 +39,17 @@ def _build_agent_app() -> FastAPI:
 def _build_fake_bfa_app() -> FastAPI:
     app = FastAPI()
 
-    @app.get("/agents")
-    def list_agents(capability: str | None = None):
-        if capability == "no_such_capability":
+    @app.post("/resolve/agents")
+    def resolve_agents(body: dict):
+        if "no such" in body.get("query", ""):
             return []
-        return [{"name": "test-agent", "endpoint": f"http://127.0.0.1:{AGENT_PORT}"}]
+        return [{
+            "kind": "agent",
+            "service": "test-agent",
+            "url": f"http://127.0.0.1:{AGENT_PORT}",
+            "id": body.get("query", "").replace(" ", "_"),
+            "score": 1.0,
+        }]
 
     return app
 
@@ -56,11 +66,16 @@ def servers():
     yield
 
 
-def test_agent_card_is_served_with_expected_skills():
+def test_agent_card_is_served_with_skills_tags_and_examples():
     response = httpx.get(f"http://127.0.0.1:{AGENT_PORT}/.well-known/agent-card.json")
     assert response.status_code == 200
-    skill_ids = [s["id"] for s in response.json()["skills"]]
-    assert skill_ids == ["echo", "boom"]
+    skills = response.json()["skills"]
+    assert [s["id"] for s in skills] == ["echo", "boom"]
+
+    # tags / examples ride on the card so the BFA can rank the skill from it
+    echo = next(s for s in skills if s["id"] == "echo")
+    assert echo["tags"] == ["echo", "diagnostic"]
+    assert echo["examples"] == ["echo this", "repeat after me"]
 
 
 def test_call_agent_known_intent_succeeds():

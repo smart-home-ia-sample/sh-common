@@ -13,20 +13,28 @@ class HomeMcpUnavailableError(Exception):
     pass
 
 
-def resolve_home_mcp_endpoint(bfa_url: str, client: httpx.Client | None = None) -> str:
+def resolve_home_mcp_endpoint(
+    bfa_url: str, client: httpx.Client | None = None, mcp_path: str = "/mcp"
+) -> str:
+    """The MCP server's streamable-http endpoint, via the BFA catalog.
+    `POST /resolve/tools` returns the tool service's base `url`; the MCP protocol
+    path (`mcp_path`) is appended."""
     owns_client = client is None
     client = client or httpx.Client(timeout=5.0)
     try:
-        response = client.get(f"{bfa_url}/mcp")
+        response = client.post(
+            f"{bfa_url}/resolve/tools",
+            json={"query": "turn device on off open close", "top_k": 1, "threshold": 0.0},
+        )
         response.raise_for_status()
-        for service in response.json():
-            if service.get("protocol") == "mcp":
-                return service["endpoint"]
+        hits = response.json()
+        if hits:
+            return hits[0]["url"].rstrip("/") + mcp_path
     finally:
         if owns_client:
             client.close()
 
-    raise HomeMcpUnavailableError("no MCP server registered with the BFA")
+    raise HomeMcpUnavailableError("no MCP server in the BFA catalog")
 
 
 def _decode_json_content(contents: list) -> Any:
