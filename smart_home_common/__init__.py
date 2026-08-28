@@ -11,16 +11,12 @@ from .auth import (
 from .correlation import get_or_create_correlation_id, new_id
 from .logging_config import configure_logging, get_logger
 from .mcp_client import HomeMcpClient, HomeMcpUnavailableError, resolve_home_mcp_endpoint
-from .registration_client import RegistrationError, register_with_retry, run_registration_heartbeat
 
 __all__ = [
     "get_or_create_correlation_id",
     "new_id",
     "configure_logging",
     "get_logger",
-    "register_with_retry",
-    "run_registration_heartbeat",
-    "RegistrationError",
     "AgentClient",
     "AgentUnavailableError",
     "call_agent",

@@ -1,7 +1,7 @@
 [project]
 name = "sh-common"
-version = "0.1.0"
-description = "Shared utilities for Smart Home AI services (logging, correlation, self-registration)"
+version = "0.2.0"
+description = "Shared utilities for Smart Home AI services (logging, correlation, auth, A2A, MCP client)"
 requires-python = ">=3.11"
 dependencies = ["httpx", "mcp==2.1.1", "pydantic", "a2a-sdk[fastapi]==1.1.2"]
 
@@ -22,4 +22,4 @@ omit = ["smart_home_common/__init__.py"]
 [tool.coverage.report]
 show_missing = true
 # CI "test / coverage" gate: pytest-cov fails the run below this.
-fail_under = 65
+fail_under = 75
