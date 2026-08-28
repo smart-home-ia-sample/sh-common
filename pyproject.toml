@@ -1,0 +1,13 @@
+[project]
+name = "sh-common"
+version = "0.1.0"
+description = "Shared utilities for Smart Home AI services (logging, correlation, self-registration)"
+requires-python = ">=3.11"
+dependencies = ["httpx", "mcp==2.1.1", "pydantic", "a2a-sdk[fastapi]==1.1.2"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["smart_home_common"]
