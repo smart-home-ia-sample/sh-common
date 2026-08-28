@@ -11,3 +11,15 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["smart_home_common"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["smart_home_common"]
+omit = ["smart_home_common/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true
+# CI "test / coverage" gate: pytest-cov fails the run below this.
+fail_under = 65
