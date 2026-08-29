@@ -60,25 +60,35 @@ async def call_agent(
     timeout: float = 10.0,
     max_attempts: int = 3,
     retry_delay_seconds: float = 0.2,
+    agent_url: str | None = None,
 ) -> dict:
-    """Discovers a healthy agent by capability via the BFA and sends it an
-    A2A message carrying {"intent", "input"} as a data part.
+    """Sends an agent an A2A message carrying {"intent", "input"} as a data part.
+
+    `agent_url` (catalog-first: the orchestrator already resolved it) is used
+    directly. Otherwise the agent is looked up via `POST {bfa}/resolve/agents`
+    for `capability`, taking the top hit's `url`.
 
     Retries only transport-level failures — a task that completes with
     TASK_STATE_FAILED is a valid domain answer and is returned as-is.
     Returns {"status": "ok"|"error", "result": {...}}.
     """
-    async with httpx.AsyncClient(timeout=timeout) as discovery_client:
-        try:
-            discovery = await discovery_client.get(f"{bfa_url}/agents", params={"capability": capability})
-        except httpx.HTTPError as exc:
-            raise AgentUnavailableError(f"BFA unreachable resolving capability '{capability}': {exc}") from exc
-        if discovery.status_code != 200:
-            raise AgentUnavailableError(f"no healthy agent available for capability '{capability}'")
-        matches = discovery.json()
-        if not matches:
-            raise AgentUnavailableError(f"no healthy agent available for capability '{capability}'")
-        target = matches[0]
+    if agent_url:
+        target = {"url": agent_url, "service": capability}
+    else:
+        async with httpx.AsyncClient(timeout=timeout) as discovery_client:
+            try:
+                discovery = await discovery_client.post(
+                    f"{bfa_url}/resolve/agents",
+                    json={"query": capability.replace("_", " "), "top_k": 1, "threshold": 0.0},
+                )
+            except httpx.HTTPError as exc:
+                raise AgentUnavailableError(f"BFA unreachable resolving capability '{capability}': {exc}") from exc
+            if discovery.status_code != 200:
+                raise AgentUnavailableError(f"no agent available for capability '{capability}'")
+            matches = discovery.json()
+            if not matches:
+                raise AgentUnavailableError(f"no agent available for capability '{capability}'")
+            target = matches[0]
 
     headers = bearer_header(auth_token or current_token())
     message = new_data_message({"intent": intent, "input": input}, context_id=correlation_id or new_id())
@@ -89,7 +99,7 @@ async def call_agent(
         client = None
         rpc_client = None
         try:
-            client, rpc_client = await _create_client(target["endpoint"], timeout, headers)
+            client, rpc_client = await _create_client(target["url"], timeout, headers)
             state = None
             last_message = None
             async for response in client.send_message(request):
@@ -124,7 +134,7 @@ async def call_agent(
                 await rpc_client.aclose()
 
     raise AgentUnavailableError(
-        f"agent '{target['name']}' unreachable after {max_attempts} attempts"
+        f"agent '{target['service']}' unreachable after {max_attempts} attempts"
     ) from last_error
 
 
@@ -140,6 +150,7 @@ class AgentClient:
         input: dict,
         correlation_id: str | None = None,
         auth_token: str | None = None,
+        agent_url: str | None = None,
     ) -> dict:
         return await call_agent(
             self._bfa_url,
@@ -149,4 +160,5 @@ class AgentClient:
             sender=self._sender,
             correlation_id=correlation_id,
             auth_token=auth_token,
+            agent_url=agent_url,
         )
