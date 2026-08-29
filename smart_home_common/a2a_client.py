@@ -18,11 +18,15 @@ class AgentUnavailableError(Exception):
 
 
 async def _create_client(endpoint: str, timeout: float, headers: dict[str, str]):
-    """Resolves the agent's card and builds a client that talks to `endpoint`
-    directly, rather than trusting whatever (possibly relative, self-declared)
-    URL the card advertises in its interfaces — consistent with this project's
-    rule that no service declares its own externally-reachable address; the
-    BFA-resolved `endpoint` is always the source of truth.
+    """Fetches the agent card from `endpoint` and re-bases its interface URLs
+    onto that same `endpoint`.
+
+    Our agents (`build_agent_card`) publish a *relative* interface URL (`"/"`)
+    so they never have to know their own externally-reachable address; the
+    `urljoin` below turns that back into an absolute URL the transport can POST
+    to, using the endpoint the caller / BFA catalog handed us. (An interface
+    that declared an absolute URL would pass through unchanged — we only ever
+    talk to our own agents, which don't.)
 
     Returns (client, http_client); the caller closes both. `headers` carries the
     user's `Authorization` so the whole A2A → MCP → BFF chain stays authenticated.
